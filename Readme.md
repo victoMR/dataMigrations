@@ -98,4 +98,4 @@ Haga clic en el botón **Migrar Datos a SQL Server** para copiar los datos de Po
 Este proyecto está licenciado bajo la Licencia MIT.
 
 ## Autor
-[Su Nombre]
+Victor Manuel Rangel Mejia
