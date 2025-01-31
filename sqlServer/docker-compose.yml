@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: sqlserver
+    ports:
+      - "1433:1433"                     # Map SQL Server port to host
+    environment:
+      - ACCEPT_EULA=Y                    # Accept the EULA to run the server
+      - SA_PASSWORD=Batmanlol1  # Set the SA password (must meet complexity requirements)
+      - MSSQL_PID=Developer              # Use the Developer edition (for development purposes)
+      - TRUSTSERVERCERTIFICATE=YES       # Disable certificate validation (for local/dev environments)
+    volumes:
+      - sqlserver_data:/var/opt/mssql    # Persistent storage for SQL Server data
+    networks:
+      - sqlserver_network                 # Place the service in a dedicated network
+
+volumes:
+  sqlserver_data:
+    driver: local                       # Use local volume driver for storing data
+
+networks:
+  sqlserver_network:                   # Create a dedicated network for SQL Server
+    driver: bridge
+
