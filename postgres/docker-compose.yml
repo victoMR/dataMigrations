@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: my_user
       POSTGRES_PASSWORD: Batmanlol1 # Replace with a secure password
     ports:
-      - "5433:5432"  # Host port 5433 mapped to container port 5432
+      - "5433:5432" # Host port 5433 mapped to container port 5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

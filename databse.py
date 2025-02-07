@@ -19,6 +19,13 @@ class DatabaseManager:
       f"?driver=ODBC+Driver+17+for+SQL+Server"
     )
 
+    @staticmethod
+    def create_mongo_engine(config: DatabaseConfig):
+      return create_engine(
+        f"mongodb+srv://{config.username}:{config.password}"
+        f"@{config.host}/{config.database}"
+    )
+
   @staticmethod
   def test_connection(engine) -> Tuple[bool, str]:
     try:

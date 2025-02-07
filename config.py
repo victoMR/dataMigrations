@@ -22,6 +22,10 @@ class DatabaseConfig:
         """Retorna la URL de conexión para SQL Server"""
         return f'mssql+pymssql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}'
 
+    def get_mongodb_url(self) -> str:
+        """Retorna la URL de conexión para MongoDB"""
+        return f'mongodb://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}'
+
 @dataclass
 class DockerConfig:
     """Configuración para servicios Docker"""
@@ -38,23 +42,24 @@ class AppConfig:
         self.LOGS_DIR = self.BASE_DIR / "logs"
         self.POSTGRES_DOCKER_DIR = self.BASE_DIR / "postgres"
         self.SQLSERVER_DOCKER_DIR = self.BASE_DIR / "sqlServer"
-        
+        self.MONGODB_DOCKER_DIR = self.BASE_DIR / "mongoDB"
+
         # Crear directorio de logs si no existe
         self.LOGS_DIR.mkdir(exist_ok=True)
-        
+
         # Configurar logging
         self._setup_logging()
-        
+
         # Verificar y configurar rutas de Docker
         self._setup_docker_paths()
-        
+
         # Configurar bases de datos por defecto
         self._setup_database_configs()
 
     def _setup_logging(self):
         """Configurar el sistema de logging"""
         log_file = self.LOGS_DIR / "app.log"
-        
+
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -73,7 +78,7 @@ class AppConfig:
             if not dir_path.exists():
                 self.logger.error(f"No se encontró el directorio: {dir_path}")
                 raise FileNotFoundError(f"Directorio no encontrado: {dir_path}")
-        
+
         # Definir configuraciones de Docker
         self.DOCKER_CONFIGS = {
             "postgres": DockerConfig(
@@ -85,9 +90,14 @@ class AppConfig:
                 compose_file=str(self.SQLSERVER_DOCKER_DIR / "docker-compose.yml"),
                 container_name="sqlserver_container",
                 service_name="sqlserver"
+            ),
+            "mongoDB": DockerConfig(
+                compose_file=str(self.MONGODB_DOCKER_DIR / "docker-compose.yml"),
+                container_name="mongoDB_container",
+                service_name="mongoDB"
             )
         }
-        
+
         # Verificar existencia de archivos docker-compose
         for service, config in self.DOCKER_CONFIGS.items():
             compose_path = Path(config.compose_file)
@@ -107,13 +117,22 @@ class AppConfig:
             password="Batmanlol1",
             table_name="anime_list"
         )
-        
+
         # Configuración por defecto para SQL Server
         self.DEFAULT_SQL_CONFIG = DatabaseConfig(
             host="127.0.0.1",
             port="1433",
             database="TestBD",
             username="sa",
+            password="Batmanlol1",
+            table_name="anime_list"
+        )
+        # Configuración por defecto para MongoDB
+        self.DEFAULT_MONGO_CONFIG = DatabaseConfig(
+            host="127.0.0.1",
+            port="27017",
+            database="TestBD",
+            username="root",
             password="Batmanlol1",
             table_name="anime_list"
         )
@@ -125,6 +144,10 @@ class AppConfig:
     def get_sqlserver_config(self) -> DatabaseConfig:
         """Retorna la configuración de SQL Server"""
         return self.DEFAULT_SQL_CONFIG
+
+    def get_mongodb_config(self) -> DatabaseConfig:
+        """Retorna la configuración de MongoDB"""
+        return self.DEFAULT_MONGO_CONFIG
 
     def get_docker_config(self, service: str) -> DockerConfig:
         """Retorna la configuración de Docker para un servicio específico"""
@@ -143,6 +166,12 @@ class AppConfig:
         config_dict = self.DEFAULT_SQL_CONFIG.__dict__.copy()
         config_dict.update(kwargs)
         self.DEFAULT_SQL_CONFIG = DatabaseConfig(**config_dict)
+
+    def update_mongodb_config(self, **kwargs):
+        """Actualizar configuración de MongoDB"""
+        config_dict = self.DEFAULT_MONGO_CONFIG.__dict__.copy()
+        config_dict.update(kwargs)
+        self.DEFAULT_MONGO_CONFIG = DatabaseConfig(**config_dict)
 
 # Constantes de la aplicación
 APP_NAME = "ETL Tool"
