@@ -13,6 +13,7 @@ services:
       - MSSQL_AGENT_ENABLED=True
     volumes:
       - sqlserver_data:/var/opt/mssql
+      - ../backups:/backups # Montar la carpeta de backups
     networks:
       - sqlserver_network
     healthcheck:
