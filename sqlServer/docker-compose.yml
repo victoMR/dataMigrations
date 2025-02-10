@@ -1,26 +1,35 @@
-version: '3.8'
+version: "3.8"
 
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2019-latest
+    image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: sqlserver
     ports:
-      - "1433:1433"                     # Map SQL Server port to host
+      - "1433:1433"
     environment:
-      - ACCEPT_EULA=Y                    # Accept the EULA to run the server
-      - SA_PASSWORD=Batmanlol1  # Set the SA password (must meet complexity requirements)
-      - MSSQL_PID=Developer              # Use the Developer edition (for development purposes)
-      - TRUSTSERVERCERTIFICATE=YES       # Disable certificate validation (for local/dev environments)
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Batmanlol1
+      - MSSQL_PID=Developer
+      - MSSQL_AGENT_ENABLED=True
     volumes:
-      - sqlserver_data:/var/opt/mssql    # Persistent storage for SQL Server data
+      - sqlserver_data:/var/opt/mssql
     networks:
-      - sqlserver_network                 # Place the service in a dedicated network
+      - sqlserver_network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          '/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P ''Batmanlol1'' -Q "SELECT 1"',
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
 volumes:
   sqlserver_data:
-    driver: local                       # Use local volume driver for storing data
+    driver: local
 
 networks:
-  sqlserver_network:                   # Create a dedicated network for SQL Server
+  sqlserver_network:
     driver: bridge
-
