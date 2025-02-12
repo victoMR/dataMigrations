@@ -5,6 +5,7 @@ green='\033[0;32m'
 blue='\033[0;34m'
 red='\033[0;31m'
 yellow='\033[1;33m'
+purple='\033[0;35m'
 reset='\033[0m'
 
 # Rutas y directorios BASE relativos al directorio de ejecución
@@ -53,6 +54,20 @@ function check_sqlserver_ready() {
 
 function show_menu() {
     clear
+    ## Add ANSI ASCII art to the menu
+    echo -e "${purple}
+    ⠄⠄⠄⠄⢠⣿⣿⣿⣿⣿⢻⣿⣿⣿⣿⣿⣿⣿⣿⣯⢻⣿⣿⣿⣿⣆⠄⠄⠄
+    ⠄⠄⣼⢀⣿⣿⣿⣿⣏⡏⠄⠹⣿⣿⣿⣿⣿⣿⣿⣿⣧⢻⣿⣿⣿⣿⡆⠄⠄
+    ⠄⠄⡟⣼⣿⣿⣿⣿⣿⠄⠄⠄⠈⠻⣿⣿⣿⣿⣿⣿⣿⣇⢻⣿⣿⣿⣿⠄⠄
+    ⠄⢰⠃⣿⣿⠿⣿⣿⣿⠄⠄⠄⠄⠄⠄⠙⠿⣿⣿⣿⣿⣿⠄⢿⣿⣿⣿⡄⠄
+    ⠄⢸⢠⣿⣿⣧⡙⣿⣿⡆⠄⠄⠄⠄⠄⠄⠄⠈⠛⢿⣿⣿⡇⠸⣿⡿⣸⡇⠄
+    ⠄⠈⡆⣿⣿⣿⣿⣦⡙⠳⠄⠄⠄⠄⠄⠄⢀⣠⣤⣀⣈⠙⠃⠄⠿⢇⣿⡇⠄
+    ⠄⠄⡇⢿⣿⣿⣿⣿⡇⠄⠄⠄⠄⠄⣠⣶⣿⣿⣿⣿⣿⣿⣷⣆⡀⣼⣿⡇⠄
+    ⠄⠄⢹⡘⣿⣿⣿⢿⣷⡀⠄⢀⣴⣾⣟⠉⠉⠉⠉⣽⣿⣿⣿⣿⠇⢹⣿⠃⠄
+    ⠄⠄⠄⢷⡘⢿⣿⣎⢻⣷⠰⣿⣿⣿⣿⣦⣀⣀⣴⣿⣿⣿⠟⢫⡾⢸⡟⠄.
+    ⠄⠄⠄⠄⠻⣦⡙⠿⣧⠙⢷⠙⠻⠿⢿⡿⠿⠿⠛⠋⠉⠄⠂⠘⠁⠞⠄⠄⠄
+    ⠄⠄⠄⠄⠄⠈⠙⠑⣠⣤⣴⡖⠄⠿⣋⣉⣉⡁⠄⢾⣦⠄⠄⠄⠄⠄⠄⠄⠄"
+    echo -e "${blue}========================================="
     echo -e "${blue}========================================="
     echo -e "     Administración de Bases de Datos      "
     echo -e "=========================================${reset}"
@@ -70,6 +85,11 @@ function show_menu() {
     echo -e "${green}12) Exportar datos CSV desde SQL Server${reset}"
     echo -e "${green}13) Migrar datos de PostgreSQL a SQL Server${reset}"
     echo -e "${green}14) Migrar datos de SQL Server a PostgreSQL${reset}"
+    echo -e "${green}15) Exportar datos de SQL Server a JSON${reset}"
+    echo -e "${green}16) Subir backup de PostgreSQL a Google Cloud${reset}"
+    echo -e "${green}17) Subir backup de SQL Server a Google Cloud${reset}"
+    echo -e "${green}18) Restaurar PostgreSQL desde Google Cloud${reset}"
+    echo -e "${green}19) Restaurar SQL Server desde Google Cloud${reset}"
     echo -e "${red}0) Salir${reset}"
     echo -e "${blue}=========================================${reset}"
     echo -n "Selecciona una opción: "
@@ -111,49 +131,62 @@ function backup_sqlserver() {
     local backup_file="$BACKUP_DIR/my_database_$(date +%Y%m%d).bak"
     echo -e "${green}Realizando backup de SQL Server...${reset}"
 
-    # Crear directorio de backups si no existe en contenedor
+    # Crear directorio de backups si no existe en el contenedor
     docker exec "$SQLSERVER_CONTAINER" mkdir -p /var/opt/mssql/backup
 
+    # Verificar que el directorio de backups se creó correctamente
+    if ! docker exec "$SQLSERVER_CONTAINER" test -d /var/opt/mssql/backup; then
+        error_log "No se pudo crear el directorio de backups en el contenedor."
+        return 1
+    fi
+
+    # Realizar el backup de la base de datos
     if docker exec "$SQLSERVER_CONTAINER" /opt/mssql-tools/bin/sqlcmd -C -S localhost -U SA -P "$SQLSERVER_PASSWORD" \
-        -Q "BACKUP DATABASE [$SQLSERVER_DB] TO DISK = N'/var/opt/mssql/backup/my_database.bak'"; then
-        docker cp "$SQLSERVER_CONTAINER:/var/opt/mssql/backup/my_database.bak" "$backup_file"
-        log_operation "Backup de SQL Server completado: $backup_file"
+        -Q "BACKUP DATABASE [$SQLSERVER_DB] TO DISK = N'/var/opt/mssql/backup/my_database.bak' WITH INIT, FORMAT, COMPRESSION;"; then
+        # Copiar el archivo de backup al host
+        if docker cp "$SQLSERVER_CONTAINER:/var/opt/mssql/backup/my_database.bak" "$backup_file"; then
+            log_operation "Backup de SQL Server completado: $backup_file"
+        else
+            error_log "Error al copiar el archivo de backup al host."
+        fi
     else
-        error_log "Error al realizar backup de SQL Server"
+        error_log "Error al realizar backup de SQL Server."
     fi
 }
 
 function restore_postgres() {
-    echo -n "Ingresa el nombre del archivo de backup: "
-    read file
-    if [ -f "$file" ]; then
-        echo -e "${green}Restaurando PostgreSQL desde $file...${reset}"
-        if docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$file"; then
-            log_operation "Restauración de PostgreSQL completada desde $file"
+    local backup_file="$BACKUP_DIR/$(ls -t "$BACKUP_DIR" | grep -E '\.sql$' | head -n 1)"
+
+    if [ -f "$backup_file" ]; then
+        echo -e "${green}Restaurando PostgreSQL desde $backup_file...${reset}"
+        if docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$backup_file"; then
+            log_operation "Restauración de PostgreSQL completada desde $backup_file"
         else
             error_log "Error al restaurar PostgreSQL"
         fi
     else
-        error_log "Archivo no encontrado: $file"
+        error_log "No se encontró ningún archivo de backup (.sql) en $BACKUP_DIR"
     fi
 }
 
 function restore_sqlserver() {
-    echo -n "Ingresa el nombre del archivo de backup (.bak): "
-    read file
-    if [ -f "$file" ]; then
-        echo -e "${green}Restaurando SQL Server desde $file...${reset}"
-        docker cp "$file" "$SQLSERVER_CONTAINER:/var/opt/mssql/backup/"
-        if docker exec "$SQLSERVER_CONTAINER" /opt/mssql-tools/bin/sqlcmd -C -S localhost -U SA -P "$SQLSERVER_PASSWORD" \
-            -Q "RESTORE DATABASE [$SQLSERVER_DB] FROM DISK = N'/var/opt/mssql/backup/$(basename "$file")' \
+    local backup_file="$BACKUP_DIR/$(ls -t "$BACKUP_DIR" | grep -E '\.bak$' | head -n 1)"
+
+    if [ -f "$backup_file" ]; then
+        echo -e "${green}Restaurando SQL Server desde $backup_file...${reset}"
+
+        # Restaurar la base de datos desde el volumen montado
+        if docker exec "$SQLSERVER_CONTAINER" /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "$SQLSERVER_PASSWORD" \
+            -Q "RESTORE DATABASE [$SQLSERVER_DB] FROM DISK = N'/backups/$(basename "$backup_file")' \
         WITH MOVE '$SQLSERVER_DB' TO '/var/opt/mssql/data/my_database.mdf', \
-        MOVE '${SQLSERVER_DB}_log' TO '/var/opt/mssql/data/my_database.ldf'"; then
-            log_operation "Restauración de SQL Server completada desde $file"
+        MOVE '${SQLSERVER_DB}_log' TO '/var/opt/mssql/data/my_database.ldf', \
+        REPLACE;"; then
+            log_operation "Restauración de SQL Server completada desde $backup_file"
         else
             error_log "Error al restaurar SQL Server"
         fi
     else
-        error_log "Archivo no encontrado: $file"
+        error_log "No se encontró ningún archivo de backup (.bak) en $BACKUP_DIR"
     fi
 }
 
@@ -189,16 +222,71 @@ function import_csv_postgres() {
     read file
     echo -n "Ingresa el nombre de la tabla destino: "
     read table
-    if [ -f "$file" ]; then
-        docker cp "$file" "$POSTGRES_CONTAINER:/tmp/"
-        if docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-            -c "\\COPY $table FROM '/tmp/$(basename "$file")' WITH CSV HEADER;"; then
-            log_operation "Importación de CSV completada en PostgreSQL desde $file hacia $table."
-        else
-            error_log "Error al importar CSV a PostgreSQL"
+
+    # Verificar que el archivo existe
+    if [ ! -f "$file" ]; then
+        error_log "Archivo no encontrado: $file"
+        return 1
+    fi
+
+    # Preprocesar el archivo CSV
+    echo -e "${green}Preprocesando archivo CSV...${reset}"
+    sed -i 's/\\"/""/g' "$file"  # Escapar comillas dobles
+    sed -i 's/\\,/,/g' "$file"   # Escapar comas
+    sed -i 's/\\r//g' "$file"    # Eliminar retornos de carro (CR)
+    sed -i 's/\\n/ /g' "$file"   # Reemplazar saltos de línea con espacios
+
+    # Copiar el archivo CSV al contenedor de PostgreSQL
+    echo -e "${green}Copiando archivo CSV al contenedor...${reset}"
+    docker cp "$file" "$POSTGRES_CONTAINER:/tmp/"
+
+    # Verificar que el archivo se copió correctamente
+    if ! docker exec "$POSTGRES_CONTAINER" test -f "/tmp/$(basename "$file")"; then
+        error_log "No se pudo copiar el archivo CSV al contenedor."
+        return 1
+    fi
+
+    # Obtener la primera línea del archivo CSV (encabezados)
+    echo -e "${green}Obteniendo encabezados del archivo CSV...${reset}"
+    headers=$(head -n 1 "$file")
+    IFS=',' read -r -a columns <<< "$headers"
+
+    # Verificar si la tabla ya existe en PostgreSQL
+    echo -e "${green}Verificando si la tabla existe en PostgreSQL...${reset}"
+    table_exists=$(docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c \
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '$table');")
+
+    if [[ "$table_exists" == *"f"* ]]; then
+        echo -e "${green}La tabla no existe. Creando tabla en PostgreSQL...${reset}"
+
+        # Generar la consulta CREATE TABLE
+        create_table_sql="CREATE TABLE $table ("
+        for column in "${columns[@]}"; do
+            # Limpiar el nombre de la columna (eliminar comillas y espacios)
+            column=$(echo "$column" | tr -d '"' | tr -d '\r' | xargs)
+            # Asignar un tipo de dato predeterminado (por ejemplo, VARCHAR)
+            create_table_sql+="$column VARCHAR, "
+        done
+        create_table_sql="${create_table_sql%, });"
+
+        # Crear la tabla en PostgreSQL
+        if ! docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+            -c "$create_table_sql"; then
+            error_log "Error al crear la tabla en PostgreSQL."
+            return 1
         fi
     else
-        error_log "Archivo no encontrado: $file"
+        echo -e "${green}La tabla ya existe. No es necesario crearla.${reset}"
+    fi
+
+    # Importar el archivo CSV a PostgreSQL
+    echo -e "${green}Importando datos a PostgreSQL...${reset}"
+    if docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+        -c "\\COPY $table FROM '/tmp/$(basename "$file")' WITH CSV HEADER;"; then
+        log_operation "Importación de CSV completada en PostgreSQL desde $file hacia $table."
+    else
+        error_log "Error al importar CSV a PostgreSQL."
+        return 1
     fi
 }
 
@@ -246,6 +334,29 @@ function export_csv_sqlserver() {
     fi
 }
 
+function export_json_sqlserver() {
+    echo -n "Ingresa el nombre de la tabla a exportar: "
+    read table
+    local export_file="$EXPORT_DIR/salida_sqlserver_$(date +%Y%m%d).json"
+    local temp_csv="$EXPORT_DIR/temp_sqlserver_export.csv"
+
+    # Exportar datos desde SQL Server a CSV
+    if docker exec "$SQLSERVER_CONTAINER" /opt/mssql-tools/bin/bcp "SELECT * FROM $SQLSERVER_DB.dbo.$table" \
+        queryout "/var/opt/mssql/backup/temp.csv" -c -t',' -S localhost -U SA -P "$SQLSERVER_PASSWORD" -C; then
+        docker cp "$SQLSERVER_CONTAINER:/var/opt/mssql/backup/temp.csv" "$temp_csv"
+    else
+        error_log "Error al exportar datos de SQL Server a CSV"
+        return 1
+    fi
+
+    # Convertir CSV a JSON usando Python
+    if python3 -c "import csv, json; print(json.dumps([dict(r) for r in csv.DictReader(open('$temp_csv'))], indent=4))" > "$export_file"; then
+        log_operation "Exportación de SQL Server a JSON completada: $export_file"
+    else
+        error_log "Error al convertir CSV a JSON"
+    fi
+}
+
 function migrate_postgres_to_sqlserver() {
     echo -n "Ingresa el nombre de la tabla en PostgreSQL a migrar: "
     read table
@@ -259,6 +370,7 @@ function migrate_postgres_to_sqlserver() {
         return 1
     fi
 
+    # Copiar el archivo CSV al host
     docker cp "$POSTGRES_CONTAINER:/tmp/migration.csv" "$temp_csv"
 
     # Verificar que el archivo CSV se copió correctamente
@@ -266,6 +378,10 @@ function migrate_postgres_to_sqlserver() {
         error_log "No se pudo copiar el archivo CSV desde el contenedor de PostgreSQL."
         return 1
     fi
+
+    # Preprocesar el archivo CSV para eliminar comillas dobles
+    echo -e "${green}Preprocesando archivo CSV...${reset}"
+    sed -i 's/"//g' "$temp_csv"  # Eliminar comillas dobles
 
     # Crear directorio de backups en el contenedor de SQL Server si no existe
     docker exec "$SQLSERVER_CONTAINER" mkdir -p /var/opt/mssql/backup
@@ -329,19 +445,16 @@ function migrate_postgres_to_sqlserver() {
         return 1
     fi
 
-    # Importar datos a SQL Server y manejar caracteres problemáticos
+    # Importar datos a SQL Server
     echo -e "${green}Importando datos a SQL Server...${reset}"
     if docker exec "$SQLSERVER_CONTAINER" /opt/mssql-tools/bin/bcp "$SQLSERVER_DB.dbo.$table" \
         in "/var/opt/mssql/backup/migration.csv" -c -t',' -S localhost -U SA -P "$SQLSERVER_PASSWORD" -C -F 2 -e /var/opt/mssql/backup/error.log -m 1; then
         log_operation "Migración de PostgreSQL a SQL Server completada para la tabla $table."
     else
-        # Si hay un error, registra y continúa
         error_log "Error al importar datos a SQL Server. Revisa error.log para más detalles."
-        # Puedes también ver el logfile de errores para ver cómo se pueden manejar
         docker exec "$SQLSERVER_CONTAINER" cat /var/opt/mssql/backup/error.log
     fi
 }
-
 
 function migrate_sqlserver_to_postgres() {
     echo -n "Ingresa el nombre de la tabla en SQL Server a migrar: "
@@ -378,6 +491,66 @@ function migrate_sqlserver_to_postgres() {
         error_log "Error al importar datos a PostgreSQL"
     fi
 }
+function upload_postgres_backup_to_gcloud() {
+    local backup_file="$BACKUP_DIR/$(ls -t "$BACKUP_DIR" | grep -E 'backup_postgres_.*\.sql$' | head -n 1)"
+    local bucket_name="backups-postgres_ubuntu"  # Nombre del bucket para PostgreSQL
+
+    if [ -f "$backup_file" ]; then
+        echo -e "${green}Subiendo $backup_file a Google Cloud Storage...${reset}"
+        if gsutil cp "$backup_file" "gs://$bucket_name/$(basename "$backup_file")"; then
+            log_operation "Backup de PostgreSQL subido exitosamente a Google Cloud Storage: $backup_file"
+        else
+            error_log "Error al subir $backup_file a Google Cloud Storage"
+        fi
+    else
+        error_log "No se encontró ningún archivo de backup de PostgreSQL en $BACKUP_DIR"
+    fi
+}
+
+function restore_postgres_from_gcloud() {
+    echo -n "Ingresa el nombre del archivo de backup en Google Cloud: "
+    read file_name
+    local bucket_name="backups-postgres_ubuntu"  # Nombre del bucket para PostgreSQL
+    local backup_file="$BACKUP_DIR/$file_name"
+
+    echo -e "${green}Descargando $file_name desde Google Cloud Storage...${reset}"
+    if gsutil cp "gs://$bucket_name/$file_name" "$backup_file"; then
+        log_operation "Archivo $file_name descargado exitosamente desde Google Cloud Storage."
+        restore_postgres "$backup_file"
+    else
+        error_log "Error al descargar $file_name desde Google Cloud Storage"
+    fi
+}
+function upload_sqlserver_backup_to_gcloud() {
+    local backup_file="$BACKUP_DIR/$(ls -t "$BACKUP_DIR" | grep -E 'my_database_.*\.bak$' | head -n 1)"
+    local bucket_name="backups-sqlserver_ubuntu"  # Nombre del bucket para SQL Server
+
+    if [ -f "$backup_file" ]; then
+        echo -e "${green}Subiendo $backup_file a Google Cloud Storage...${reset}"
+        if gsutil cp "$backup_file" "gs://$bucket_name/$(basename "$backup_file")"; then
+            log_operation "Backup de SQL Server subido exitosamente a Google Cloud Storage: $backup_file"
+        else
+            error_log "Error al subir $backup_file a Google Cloud Storage"
+        fi
+    else
+        error_log "No se encontró ningún archivo de backup de SQL Server en $BACKUP_DIR"
+    fi
+}
+
+function restore_sqlserver_from_gcloud() {
+    echo -n "Ingresa el nombre del archivo de backup en Google Cloud: "
+    read file_name
+    local bucket_name="backups-sqlserver_ubuntu"  # Nombre del bucket para SQL Server
+    local backup_file="$BACKUP_DIR/$file_name"
+
+    echo -e "${green}Descargando $file_name desde Google Cloud Storage...${reset}"
+    if gsutil cp "gs://$bucket_name/$file_name" "$backup_file"; then
+        log_operation "Archivo $file_name descargado exitosamente desde Google Cloud Storage."
+        restore_sqlserver "$backup_file"
+    else
+        error_log "Error al descargar $file_name desde Google Cloud Storage"
+    fi
+}
 
 while true; do
     show_menu
@@ -397,6 +570,11 @@ while true; do
         12) export_csv_sqlserver;;
         13) migrate_postgres_to_sqlserver;;
         14) migrate_sqlserver_to_postgres;;
+        15) export_json_sqlserver;;
+        16) upload_postgres_backup_to_gcloud;;
+        17) upload_sqlserver_backup_to_gcloud;;
+        18) restore_postgres_from_gcloud;;
+        19) restore_sqlserver_from_gcloud;;
         0) break;;
         *) warning_log "Opción inválida";;
     esac
