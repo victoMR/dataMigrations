@@ -1,0 +1,9 @@
+[0;31m[ERROR][0m Tiempo de espera agotado para SQL Server
+[0;31m[ERROR][0m Error al importar JSON a PostgreSQL
+[0;31m[ERROR][0m Error al crear la tabla en PostgreSQL.
+[0;31m[ERROR][0m Error al insertar datos en PostgreSQL.
+[0;32m[INFO][0m Importación de JSON completada en PostgreSQL desde dataMongo/movies.json hacia movies.
+[0;31m[ERROR][0m Error al insertar datos en PostgreSQL.
+[0;31m[ERROR][0m Error al insertar datos en PostgreSQL.
+[0;31m[ERROR][0m Error al insertar datos en PostgreSQL.
+[0;32m[INFO][0m Importación de JSON completada en PostgreSQL desde dataMongo/movies.json hacia movies.

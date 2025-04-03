@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: Batmanlol1
+    volumes:
+      - mongodb_data:/data/db
+      - ./exports:/exports
+    networks:
+      - mongo_network
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+        reservations:
+          memory: 1G
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  mongo_network:
+    driver: bridge
